@@ -12,13 +12,21 @@
 #include <stdlib.h>
 #include "logger.h"
 
-exit_status_t nstring_ctor(char **string, const char *text, uint16_t capacity);
-exit_status_t nstring_dtor(char *string);
+typedef char * nstring_t;
+typedef const char * cnstring_t;
 
-exit_status_t nstring_get_length(const char *string);
-exit_status_t nstring_get_capacity(const char *string);
+exit_status_t nstring_ctor(nstring_t *string, const char *text, uint16_t capacity);
+exit_status_t nstring_dtor(nstring_t string);
 
-exit_status_t nstring_append(char *string, const char *text);
-exit_status_t nstring_insert(char *string, const char *text, uint16_t index);
+exit_status_t nstring_get_length(cnstring_t string);
+exit_status_t nstring_get_capacity(cnstring_t string);
+
+exit_status_t nstring_resize(nstring_t *string, uint16_t capacity);
+exit_status_t nstring_fit(nstring_t *string);
+
+exit_status_t nstring_append(nstring_t *string, const char *text);
+exit_status_t nstring_insert(nstring_t *string, const char *text, uint16_t index);
+
+exit_status_t nstring_rtrim(nstring_t *string);
 
 #endif  // INC_NSTRING_H

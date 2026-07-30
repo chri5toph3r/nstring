@@ -8,22 +8,23 @@
 #include "../inc/nstring.h"
 
 #include <assert.h>
+#include <ctype.h>
 
 
-struct nstring_t {
+struct nstring_s_t {
     uint16_t length;    /** string length without '\0' */
     uint16_t capacity;  /** maximum string length without '\0' */
     char string[];      /** nstring content */
 };
 
 
-#define HEADER_SIZE             4
-#define MAX_TEXT_LENGTH         UINT16_MAX
+#define HEADER_SIZE                     4
+#define MAX_TEXT_LENGTH                 UINT16_MAX
 
-#define nstring_size(cap)       (HEADER_SIZE + cap + 1)
-#define nstring_terminate(nstr) (nstr->string[nstr->length] = '\0')
-#define nstring_to_str(nstr)    ((char *)(nstr->string))
-#define str_to_nstring(str)     ((struct nstring_t *)(str - HEADER_SIZE))
+#define nstring_size(cap)               (HEADER_SIZE + (cap) + 1)
+#define nstring_terminate(nstr)         ((nstr)->string[(nstr)->length] = '\0')
+#define nstring_struct_to_str(nstr)     ((nstring_t)((nstr)->string))
+#define nstring_str_to_struct(str)      ((struct nstring_s_t *)((str) - HEADER_SIZE))
 
 
 exit_status_t nstring_ctor(char **string, const char *text, uint16_t capacity)
@@ -48,10 +49,10 @@ exit_status_t nstring_ctor(char **string, const char *text, uint16_t capacity)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_t *nstring = calloc(0, nstring_size(capacity));
+    struct nstring_s_t *nstring = malloc(nstring_size(capacity));
     if (nstring == nullptr)
     {
-        log("calloc error");
+        log("malloc error");
         *string = nullptr;
         return EXIT_STATUS_OS_FAILURE;
     }
@@ -65,34 +66,20 @@ exit_status_t nstring_ctor(char **string, const char *text, uint16_t capacity)
         nstring_terminate(nstring);
     }
 
-    *string = nstring->string;
+    *string = nstring_struct_to_str(nstring);
 
     return EXIT_STATUS_SUCCESS;
 }
 
-static int nstring__resize(struct nstring_t *nstring, const uint16_t capacity)
-{
-    assert(nstring != nullptr);
-    assert(capacity > 0);
-
-    if (nstring->capacity != capacity)
-    {
-        nstring->capacity = capacity;
-        nstring = realloc(nstring->string, nstring_size(nstring->capacity));
-    }
-
-    return EXIT_STATUS_SUCCESS;
-}
-
-exit_status_t nstring_dtor(char *string)
+exit_status_t nstring_dtor(nstring_t string)
 {
     if (string == nullptr)
     {
-        log("string is null");
+        log("string cannot be null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    free(str_to_nstring(string));
+    free(nstring_str_to_struct(string));
 
     return EXIT_STATUS_SUCCESS;
 }
@@ -101,26 +88,78 @@ exit_status_t nstring_dtor(char *string)
  * GETTERS
  */
 
-exit_status_t nstring_get_length(const char *string)
+exit_status_t nstring_get_length(const cnstring_t string)
 {
     if (string == nullptr)
     {
-        log("string is null");
+        log("string cannot be null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    return str_to_nstring(string)->length;
+    return nstring_str_to_struct(string)->length;
 }
 
-exit_status_t nstring_get_capacity(const char *string)
+exit_status_t nstring_get_capacity(const cnstring_t string)
 {
     if (string == nullptr)
     {
-        log("string is null");
+        log("string cannot be null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    return str_to_nstring(string)->capacity;
+    return nstring_str_to_struct(string)->capacity;
+}
+
+
+/**
+ * SIZE MANIPULATION
+ */
+
+static exit_status_t nstring_s_resize(struct nstring_s_t **nstring, const uint16_t capacity)
+{
+    assert(nstring != nullptr);
+    assert(*nstring != nullptr);
+    assert(capacity > 0);
+
+    if ((*nstring)->capacity != capacity)
+    {
+        struct nstring_s_t *temp = realloc((*nstring), nstring_size(capacity));
+        if (temp == nullptr)
+        {
+            log("realloc error");
+            return EXIT_STATUS_OS_FAILURE;
+        }
+        *nstring = temp;
+        (*nstring)->capacity = capacity;
+    }
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_resize(nstring_t *string, const uint16_t capacity)
+{
+    if (string == nullptr || *string == nullptr || capacity == 0)
+    {
+        log("string cannot null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    exit_status_t status = nstring_s_resize(&nstring, capacity);
+    if (exit_err(status))
+    {
+        log("string or text cannot null");
+        return status;
+    }
+
+    *string = nstring_struct_to_str(nstring);
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_fit(nstring_t *string)
+{
+    return nstring_resize(string, nstring_get_length(*string));
 }
 
 
@@ -128,59 +167,67 @@ exit_status_t nstring_get_capacity(const char *string)
  * METHODS
  */
 
-static void nstring__append(struct nstring_t *nstring, const char *text, const uint16_t text_len)
+static void nstring_s_append(struct nstring_s_t *nstring, const char *text, const uint16_t text_len)
 {
     assert(nstring != nullptr);
     assert(text != nullptr);
     assert(text_len != 0);
 
-    memmove(nstring->string, text, nstring->length);
+    memmove(&nstring->string[nstring->length], text, text_len);
     nstring->length += text_len;
     nstring_terminate(nstring);
 }
 
-exit_status_t nstring_append(char *string, const char *text)
+exit_status_t nstring_append(nstring_t *string, const char *text)
 {
-    if (string == nullptr || text == nullptr)
+    if (string == nullptr || *string == nullptr || text == nullptr)
     {
-        log("string or text is null");
+        log("string or text cannot null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_t *nstring = str_to_nstring(string);
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
 
     const uint16_t text_len = strlen(text);
     if (nstring->length + text_len > nstring->capacity)
     {
-        nstring__resize(nstring, nstring->length + text_len);
+        exit_status_t status = nstring_s_resize(&nstring, nstring->length + text_len);
+        if (exit_err(status))
+        {
+            log("string or text cannot null");
+            return status;
+        }
+        *string = nstring_struct_to_str(nstring);
     }
 
-    nstring__append(nstring, text, text_len);
+    nstring_s_append(nstring, text, text_len);
+
+    logdbg("%s", nstring->string);
 
     return EXIT_STATUS_SUCCESS;
 }
 
-static void nstring__insert(struct nstring_t *nstring, const char *text, const uint16_t index, const uint16_t text_len)
+static void nstring_s_insert(struct nstring_s_t *nstring, const char *text, const uint16_t index, const uint16_t text_len)
 {
     assert(nstring != nullptr);
     assert(text != nullptr);
     assert(text_len != 0);
 
-    memmove(&nstring->string[index + text_len], &nstring->string[index], text_len);
+    memmove(&nstring->string[index + text_len], &nstring->string[index], nstring->length - index);
     memmove(&nstring->string[index], text, text_len);
     nstring->length += text_len;
     nstring_terminate(nstring);
 }
 
-exit_status_t nstring_insert(char *string, const char *text, const uint16_t index)
+exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t index)
 {
-    if (string == nullptr || text == nullptr)
+    if (string == nullptr || *string == nullptr || text == nullptr)
     {
-        log("string or text is null");
+        log("string or text cannot null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_t *nstring = str_to_nstring(string);
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
 
     if (index > nstring->length + 1)
     {
@@ -191,13 +238,46 @@ exit_status_t nstring_insert(char *string, const char *text, const uint16_t inde
     const uint16_t text_len = strlen(text);
     if (nstring->length + text_len > nstring->capacity)
     {
-        nstring__resize(nstring, nstring->length + text_len);
+        exit_status_t status = nstring_s_resize(&nstring, nstring->length + text_len);
+        if (exit_err(status))
+        {
+            log("string or text cannot null");
+            return status;
+        }
+        *string = nstring_struct_to_str(nstring);
     }
 
     if (index == nstring->length + 1)
-        nstring__append(nstring, text, text_len);
+        nstring_s_append(nstring, text, text_len);
     else
-        nstring__insert(nstring, text, index, text_len);
+        nstring_s_insert(nstring, text, index, text_len);
+
+    logdbg("%s", nstring->string);
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_rtrim(nstring_t *string)
+{
+    if (string == nullptr || *string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+
+    uint16_t new_len = nstring->length - 1;
+    for (; new_len > 0; new_len --)
+    {
+        if (!isspace(nstring->string[new_len]))
+            break;
+    }
+
+    nstring->length = new_len + 1;
+    nstring_terminate(nstring);
+
+    logdbg("%s", nstring->string);
 
     return EXIT_STATUS_SUCCESS;
 }
