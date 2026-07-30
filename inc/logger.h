@@ -17,23 +17,18 @@
 
 #define MODE_DEBUG
 
-typedef enum : uint8_t
+typedef enum : int32_t
 {
+    EXIT_STATUS_INDEX_OUT_OF_BOUNDS = -3,
+    EXIT_STATUS_OS_FAILURE = -2,
+    EXIT_STATUS_INVALID_ARGUMENT = -1,
     EXIT_STATUS_SUCCESS = 0,
-    EXIT_STATUS_INVALID_ARGUMENT,
-    EXIT_STATUS_OS_FAILURE,
-    EXIT_STATUS_INDEX_OUT_OF_BOUNDS,
-
-    EXIT_STATUS_NUM
 } exit_status_t;
 
 
-void logger_err(exit_status_t status);
 void logger_log(bool dbg, const char *file, const char *func, int line, const char *format, ...);
 
-
-#define set_err(code)       logger_err(code);
-#define clr_err()           logger_err(EXIT_STATUS_SUCCESS);
+#define exit_err(status)    (status < 0)
 #define log(format, ...)    logger_log(false, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__);
 
 #ifdef MODE_DEBUG

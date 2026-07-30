@@ -11,7 +11,8 @@
 
 int main(int argc, char *argv[])
 {
-    char *nstring = nstring_ctor("", 0);
+    char *nstring = nullptr;
+    nstring_ctor(&nstring, "", 0);
     if (nstring == nullptr)
     {
         log("nstring ctor failed\n");

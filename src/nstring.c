@@ -26,8 +26,14 @@ struct nstring_t {
 #define str_to_nstring(str)     ((struct nstring_t *)(str - HEADER_SIZE))
 
 
-char *nstring_ctor(const char *text, uint16_t capacity)
+exit_status_t nstring_ctor(char **string, const char *text, uint16_t capacity)
 {
+    if (string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
     uint16_t text_len = 0;
     if (text != nullptr)
     {
@@ -38,16 +44,16 @@ char *nstring_ctor(const char *text, uint16_t capacity)
     if (capacity == 0)
     {
         log("nstring capacity cannot be 0");
-        set_err(EXIT_STATUS_INVALID_ARGUMENT);
-        return nullptr;
+        *string = nullptr;
+        return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
     struct nstring_t *nstring = calloc(0, nstring_size(capacity));
     if (nstring == nullptr)
     {
         log("calloc error");
-        set_err(EXIT_STATUS_OS_FAILURE);
-        return nullptr;
+        *string = nullptr;
+        return EXIT_STATUS_OS_FAILURE;
     }
 
     nstring->length = text_len;
@@ -59,8 +65,9 @@ char *nstring_ctor(const char *text, uint16_t capacity)
         nstring_terminate(nstring);
     }
 
-    clr_err();
-    return nstring_to_str(nstring);
+    *string = nstring->string;
+
+    return EXIT_STATUS_SUCCESS;
 }
 
 static int nstring__resize(struct nstring_t *nstring, const uint16_t capacity)
@@ -77,7 +84,7 @@ static int nstring__resize(struct nstring_t *nstring, const uint16_t capacity)
     return EXIT_STATUS_SUCCESS;
 }
 
-int nstring_dtor(char *string)
+exit_status_t nstring_dtor(char *string)
 {
     if (string == nullptr)
     {
@@ -94,7 +101,7 @@ int nstring_dtor(char *string)
  * GETTERS
  */
 
-int32_t nstring_get_length(const char *string)
+exit_status_t nstring_get_length(const char *string)
 {
     if (string == nullptr)
     {
@@ -105,7 +112,7 @@ int32_t nstring_get_length(const char *string)
     return str_to_nstring(string)->length;
 }
 
-int32_t nstring_get_capacity(const char *string)
+exit_status_t nstring_get_capacity(const char *string)
 {
     if (string == nullptr)
     {
@@ -132,7 +139,7 @@ static void nstring__append(struct nstring_t *nstring, const char *text, const u
     nstring_terminate(nstring);
 }
 
-int nstring_append(char *string, const char *text)
+exit_status_t nstring_append(char *string, const char *text)
 {
     if (string == nullptr || text == nullptr)
     {
@@ -165,7 +172,7 @@ static void nstring__insert(struct nstring_t *nstring, const char *text, const u
     nstring_terminate(nstring);
 }
 
-int nstring_insert(char *string, const char *text, const uint16_t index)
+exit_status_t nstring_insert(char *string, const char *text, const uint16_t index)
 {
     if (string == nullptr || text == nullptr)
     {
