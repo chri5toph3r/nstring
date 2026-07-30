@@ -71,15 +71,17 @@ exit_status_t nstring_ctor(char **string, const char *text, uint16_t capacity)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_dtor(nstring_t string)
+exit_status_t nstring_dtor(nstring_t *string)
 {
-    if (string == nullptr)
+    if (string == nullptr || *string == nullptr)
     {
         log("string cannot be null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    free(nstring_str_to_struct(string));
+    free(nstring_str_to_struct(*string));
+
+    *string = nullptr;
 
     return EXIT_STATUS_SUCCESS;
 }
@@ -164,7 +166,7 @@ exit_status_t nstring_fit(nstring_t *string)
 
 
 /**
- * METHODS
+ * INSERTING
  */
 
 static void nstring_s_append(struct nstring_s_t *nstring, const char *text, const uint16_t text_len)
@@ -257,7 +259,7 @@ exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_rtrim(nstring_t *string)
+exit_status_t nstring_rtrim(const nstring_t *string)
 {
     if (string == nullptr || *string == nullptr)
     {
@@ -268,11 +270,8 @@ exit_status_t nstring_rtrim(nstring_t *string)
     struct nstring_s_t *nstring = nstring_str_to_struct(*string);
 
     uint16_t new_len = nstring->length - 1;
-    for (; new_len > 0; new_len --)
-    {
-        if (!isspace(nstring->string[new_len]))
-            break;
-    }
+    for (; new_len > 0 && isspace(nstring->string[new_len]); new_len --)
+    { }
 
     nstring->length = new_len + 1;
     nstring_terminate(nstring);
@@ -280,4 +279,84 @@ exit_status_t nstring_rtrim(nstring_t *string)
     logdbg("%s", nstring->string);
 
     return EXIT_STATUS_SUCCESS;
+}
+
+/**
+ * WHITESPACE TRIMMING
+ */
+
+exit_status_t nstring_ltrim(const nstring_t *string)
+{
+    if (string == nullptr || *string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+
+    uint16_t ltrim_len = 0;
+    for (; ltrim_len < nstring->length && isspace(nstring->string[ltrim_len]); ltrim_len ++)
+    { }
+
+    nstring->length = nstring->length - ltrim_len;
+    memmove(nstring->string, nstring->string + ltrim_len, nstring->length + 1);
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_trim(const nstring_t *string)
+{
+    if (string == nullptr || *string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    exit_status_t status = nstring_rtrim(string);
+    if (exit_err(status))
+    {
+        log("nstring rtrim error");
+        return status;
+    }
+
+    status = nstring_ltrim(string);
+    if (exit_err(status))
+    {
+        log("nstring ltrim error");
+        return status;
+    }
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_find_char(const cnstring_t string, const char c, const uint16_t start)
+{
+    if (string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    if (c == '\0')
+    {
+        log("character cannot be a null-terminator");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+
+    if (start > nstring->length)
+    {
+        log("start index out of bounds");
+        return EXIT_STATUS_INDEX_OUT_OF_BOUNDS;
+    }
+
+    for (uint16_t idx = start; idx < nstring->length; idx ++)
+    {
+        if (nstring->string[idx] == c)
+            return idx;
+    }
+
+    return EXIT_STATUS_NO_RESULT;
 }
