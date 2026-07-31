@@ -48,6 +48,9 @@ exit_status_t nstring_get_capacity(cnstring_t string);
 exit_status_t nstring_resize(nstring_t *string, uint16_t capacity);
 exit_status_t nstring_fit(nstring_t *string);
 
+exit_status_t nstring_clear(const nstring_t *string);
+exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...);
+
 exit_status_t nstring_append(nstring_t *string, const char *text);
 exit_status_t nstring_insert(nstring_t *string, const char *text, uint16_t index);
 

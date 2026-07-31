@@ -76,7 +76,7 @@ exit_status_t nstring_dtor(nstring_t *string)
     if (string == nullptr || *string == nullptr)
     {
         log("string cannot be null");
-        return EXIT_STATUS_INVALID_ARGUMENT;
+        return EXIT_STATUS_SUCCESS;
     }
 
     free(nstring_str_to_struct(*string));
@@ -159,7 +159,7 @@ static exit_status_t nstring_s_resize(struct nstring_s_t **nstring, const uint16
 
     if ((*nstring)->capacity != capacity)
     {
-        struct nstring_s_t *temp = realloc((*nstring), nstring_size(capacity));
+        struct nstring_s_t *temp = realloc(*nstring, nstring_size(capacity));
         if (temp == nullptr)
         {
             log("realloc error");
@@ -198,6 +198,64 @@ exit_status_t nstring_fit(nstring_t *string)
     return nstring_resize(string, nstring_get_length(*string));
 }
 
+exit_status_t nstring_clear(const nstring_t *string)
+{
+    if (string == nullptr || *string == nullptr)
+    {
+        log("string cannot null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+
+    nstring->length = 0;
+    nstring_terminate(nstring);
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...)
+{
+    if (string == nullptr || *string == nullptr || format == nullptr)
+    {
+        log("string nor format cannot null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+
+    exit_status_t status = EXIT_STATUS_SUCCESS;
+
+    const size_t format_len = strlen(format);
+    if (format_len > nstring->capacity)
+    {
+        status = nstring_s_resize(&nstring, 2 * format_len);
+        if (exit_err(status))
+        {
+            log("nstring struct resize error");
+            return status;
+        }
+    }
+
+    if (nstring->length > 0)
+    {
+        status = nstring_s_resize(&nstring, format_len);
+        if (exit_err(status))
+        {
+            log("nstring struct resize error");
+            return status;
+        }
+        *string = nstring_struct_to_str(nstring);
+    }
+
+    va_list args;
+    for (va_start(args, format); *format != '\0'; format ++)
+    {
+
+    }
+
+    va_end(args);
+}
 
 /**
  * INSERTING
