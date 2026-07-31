@@ -27,7 +27,7 @@ struct nstring_s_t {
 #define nstring_str_to_struct(str)      ((struct nstring_s_t *)((str) - HEADER_SIZE))
 
 
-exit_status_t nstring_ctor(char **string, const char *text, uint16_t capacity)
+exit_status_t nstring_ctor(nstring_t *string, const char *text, uint16_t capacity)
 {
     if (string == nullptr)
     {
@@ -82,6 +82,40 @@ exit_status_t nstring_dtor(nstring_t *string)
     free(nstring_str_to_struct(*string));
 
     *string = nullptr;
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_copy(nstring_t *string, const cnstring_t other)
+{
+    if (string == nullptr || *string == nullptr || other == nullptr)
+    {
+        log("string and other cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    const struct nstring_s_t *another = nstring_str_to_struct(other);
+
+    exit_status_t status = nstring_ctor(string, another->string, another->capacity);
+    if (exit_err(status))
+    {
+        log("nstring ctor error");
+        return status;
+    }
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_move(nstring_t *src, nstring_t *dst)
+{
+    if (src == nullptr || *src == nullptr || dst == nullptr)
+    {
+        log("src nor dst cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    *dst = *src;
+    *src = nullptr;
 
     return EXIT_STATUS_SUCCESS;
 }
@@ -150,7 +184,7 @@ exit_status_t nstring_resize(nstring_t *string, const uint16_t capacity)
     exit_status_t status = nstring_s_resize(&nstring, capacity);
     if (exit_err(status))
     {
-        log("string or text cannot null");
+        log("string nor text cannot null");
         return status;
     }
 
@@ -184,7 +218,7 @@ exit_status_t nstring_append(nstring_t *string, const char *text)
 {
     if (string == nullptr || *string == nullptr || text == nullptr)
     {
-        log("string or text cannot null");
+        log("string nor text cannot null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
@@ -196,7 +230,7 @@ exit_status_t nstring_append(nstring_t *string, const char *text)
         exit_status_t status = nstring_s_resize(&nstring, nstring->length + text_len);
         if (exit_err(status))
         {
-            log("string or text cannot null");
+            log("string nor text cannot null");
             return status;
         }
         *string = nstring_struct_to_str(nstring);
@@ -225,7 +259,7 @@ exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t
 {
     if (string == nullptr || *string == nullptr || text == nullptr)
     {
-        log("string or text cannot null");
+        log("string nor text cannot null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
@@ -243,7 +277,7 @@ exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t
         exit_status_t status = nstring_s_resize(&nstring, nstring->length + text_len);
         if (exit_err(status))
         {
-            log("string or text cannot null");
+            log("nstring resize error");
             return status;
         }
         *string = nstring_struct_to_str(nstring);
@@ -330,6 +364,59 @@ exit_status_t nstring_trim(const nstring_t *string)
     return EXIT_STATUS_SUCCESS;
 }
 
+exit_status_t nstring_starts_with(const cnstring_t string, const char *substr)
+{
+    if (string == nullptr || substr == nullptr)
+    {
+        log("string nor substr cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    const struct nstring_s_t *nstring = nstring_str_to_struct(string);
+
+    const size_t substr_len = strlen(substr);
+    if (substr_len > nstring->length)
+    {
+        log("substr length out of bounds");
+        return EXIT_STATUS_INDEX_OUT_OF_BOUNDS;
+    }
+
+    for (uint16_t idx = 0; idx < (uint16_t)substr_len; idx ++)
+    {
+        if (nstring->string[idx] != substr[idx])
+            return false;
+    }
+
+    return true;
+}
+
+exit_status_t nstring_ends_with(const cnstring_t string, const char *substr)
+{
+    if (string == nullptr || substr == nullptr)
+    {
+        log("string nor substr cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    const struct nstring_s_t *nstring = nstring_str_to_struct(string);
+
+    const size_t substr_len = strlen(substr);
+    if (substr_len > nstring->length)
+    {
+        log("substr length out of bounds");
+        return EXIT_STATUS_INDEX_OUT_OF_BOUNDS;
+    }
+
+    for (uint16_t idx = nstring->length, sub_idx = (uint16_t)substr_len;
+        sub_idx > 0; idx ++, sub_idx ++)
+    {
+        if (nstring->string[idx] != substr[idx])
+            return false;
+    }
+
+    return true;
+}
+
 exit_status_t nstring_find_char(const cnstring_t string, const char c, const uint16_t start)
 {
     if (string == nullptr)
@@ -358,5 +445,90 @@ exit_status_t nstring_find_char(const cnstring_t string, const char c, const uin
             return idx;
     }
 
-    return EXIT_STATUS_NO_RESULT;
+    return EXIT_STATUS_NOT_FOUND;
+}
+
+exit_status_t nstring_count_char(nstring_t *string, const char c)
+{
+    if (string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    if (c == '\0')
+    {
+        log("character cannot be a null-terminator");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+
+    uint16_t count = 0;
+    for (uint16_t idx = 0; idx < nstring->length; idx ++)
+    {
+        if (nstring->string[idx] == c)
+            count ++;
+    }
+
+    return count;
+}
+
+exit_status_t nstring_replace_char(nstring_t *string, const char c, const uint16_t start)
+{
+    if (string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    if (c == '\0')
+    {
+        log("character cannot be a null-terminator");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+
+    if (start > nstring->length)
+    {
+        log("start index out of bounds");
+        return EXIT_STATUS_INDEX_OUT_OF_BOUNDS;
+    }
+
+    for (uint16_t idx = start; idx < nstring->length; idx ++)
+    {
+        if (nstring->string[idx] == c)
+        {
+            nstring->string[idx] = c;
+            return EXIT_STATUS_SUCCESS;
+        }
+    }
+
+    return EXIT_STATUS_NOT_FOUND;
+}
+
+exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
+{
+    if (string == nullptr)
+    {
+        log("string cannot be null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    if (c == '\0')
+    {
+        log("character cannot be a null-terminator");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+
+    for (uint16_t idx = 0; idx < nstring->length; idx ++)
+    {
+        if (nstring->string[idx] == c)
+            nstring->string[idx] = c;
+    }
+
+    return EXIT_STATUS_SUCCESS;
 }

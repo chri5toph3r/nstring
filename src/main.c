@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
     printf("[%d/%d]: \"%s\"\n", nstring_get_length(nstring), nstring_get_capacity(nstring), nstring);
 
     status = nstring_find_char(nstring, 'x', 0);
-    if (status == EXIT_STATUS_NO_RESULT)
+    if (status == EXIT_STATUS_NOT_FOUND)
     {
         printf("not found\n");
     }
