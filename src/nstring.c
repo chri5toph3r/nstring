@@ -624,26 +624,103 @@ exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
  * FORMATTING
  */
 
-exit_status_t nstring_s_format_format_spec(struct nstring_s_t **nstring, const char **format, va_list arguments)
+struct nstring_fmt_ctx
 {
-    assert(nstring != nullptr);
-    assert(*nstring != nullptr);
-    assert(format != nullptr);
-    assert(*format != nullptr);
+    struct nstring_s_t **nstring;
+    const char **format;
+    va_list *args;
+    enum : uint8_t { LEFT, CENTER, RIGHT } align_dir;  // '<' '^' '>'
+    enum : uint8_t { MINUS, PLUS, SPACE } sign;  // '-' '+' ' '
+    char align_char;    // <any char>
+    uint16_t width;     // digit+
+    bool alt_form;      // '#'
+} ;
 
+
+exit_status_t nstring_s_fmt_f_spec_align(struct nstring_fmt_ctx *context)
+{
+    assert(context != nullptr);
+
+    context->align_char = **context->format;
+
+    (*context->format) ++;
+
+    switch (**context->format)
+    {
+    case '<':
+        context->align_dir = LEFT;
+        break;
+    case '^':
+        context->align_dir = CENTER;
+        break;
+    case '>':
+        context->align_dir = RIGHT;
+        break;
+    default:
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
+{
+    assert(context != nullptr);
+
+    (*context->format) ++;
 
     exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
-    switch (**format)
+    switch (*(*context->format + 1))
+    {
+    case '<':
+    case '^':
+    case '>':
+        status = nstring_s_fmt_f_spec_align(context);
+        if (exit_err(status))
+        {
+            log("nstring format alignment error")
+        }
+        return status;
+    default:
+        break;
+    }
+
+    switch (**context->format)
+    {
+    case '+':
+    case '-':
+    case '>':
+        status = nstring_s_fmt_f_spec_align(context);
+        if (exit_err(status))
+        {
+            log("nstring format alignment error")
+        }
+        return status;
+    default:
+        break;
+    }
+
+    return status;
+}
+
+exit_status_t nstring_s_fmt_repl_field(struct nstring_fmt_ctx *context)
+{
+    assert(context != nullptr);
+
+    (*context->format) ++;
+
+    exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
+    switch (**context->format)
     {
     case '{':
-        status = nstring_append_char((nstring_t*)&(*nstring)->string, '{');
+        status = nstring_append_char((nstring_t*)&(*context->nstring)->string, '{');
         if (exit_err(status))
         {
             log("nstring append char error")
         }
         return status;
     case ':':
-        status = nstring_s_format_format_spec(nstring, format, arguments);
+        status = nstring_s_fmt_f_spec(context);
         if (exit_err(status))
         {
             log("nstring format format spec error")
@@ -657,39 +734,7 @@ exit_status_t nstring_s_format_format_spec(struct nstring_s_t **nstring, const c
     return status;
 }
 
-exit_status_t nstring_s_format_replacement_field(struct nstring_s_t **nstring, const char **format, va_list arguments)
-{
-    assert(nstring != nullptr);
-    assert(*nstring != nullptr);
-    assert(format != nullptr);
-    assert(*format != nullptr);
-
-    exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
-    switch (**format)
-    {
-    case '{':
-        status = nstring_append_char((nstring_t*)&(*nstring)->string, '{');
-        if (exit_err(status))
-        {
-            log("nstring append char error")
-        }
-        return status;
-    case ':':
-        status = nstring_s_format_format_spec(nstring, format, arguments);
-        if (exit_err(status))
-        {
-            log("nstring format format spec error")
-        }
-        return status;
-    default:
-        log("invalid format");
-        break;
-    }
-
-    return status;
-}
-
-exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...)
+exit_status_t nstring_from_format(nstring_t *string, const char *format, ...)
 {
     if (string == nullptr || *string == nullptr || format == nullptr)
     {
@@ -723,25 +768,18 @@ exit_status_t nstring_from_format(nstring_t * restrict string, const char * rest
         *string = nstring_struct_to_str(nstring);
     }
 
-    // width and precision
-    // 10000 >{:9,}> 10,000
-    // 10000 >{:09_}> 000_010_000
-    // 1000.3789 >{:6_.8,}> 1_000.378,9
-    struct
-    {
-        enum { LEFT, RIGHT, CENTER } align;  // < > ^
-        char align_char;  // any char
-        enum { MINUS, PLUS } sign;  // + -
-        bool alt_form;  // #
-        bool zero_pad;  // 0
-    } cursor;
-
     va_list args;
     for (va_start(args, format); *format != '\0'; format ++)
     {
         if (*format == '{')
         {
-            status = nstring_s_format_replacement_field(&nstring, &format, args);
+            struct nstring_fmt_ctx context = {0};
+
+            context.nstring = &nstring;
+            context.format = &format;
+            context.args = &args;
+
+            status = nstring_s_fmt_repl_field(&context);
             if (exit_err(status))
             {
                 log("nstring format replacement field error")

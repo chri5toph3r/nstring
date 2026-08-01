@@ -73,6 +73,6 @@ exit_status_t nstring_replace_str(nstring_t *string, const char *substr, uint16_
 exit_status_t nstring_replace_all_char(nstring_t *string, char c);
 exit_status_t nstring_replace_all_str(nstring_t *string, const char *substr);
 
-exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...);
+exit_status_t nstring_from_format(nstring_t *string, const char *format, ...);
 
 #endif  // INC_NSTRING_H
