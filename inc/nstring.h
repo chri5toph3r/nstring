@@ -36,7 +36,7 @@ typedef const char * cnstring_t;
                                 )(x)
 
 
-exit_status_t nstring_ctor(nstring_t *string, const char *text, uint16_t capacity);
+exit_status_t nstring_ctor(nstring_t * restrict string, const char * restrict text, uint16_t capacity);
 exit_status_t nstring_dtor(nstring_t *string);
 
 exit_status_t nstring_copy(nstring_t *string, cnstring_t other);
@@ -49,7 +49,7 @@ exit_status_t nstring_resize(nstring_t *string, uint16_t capacity);
 exit_status_t nstring_fit(nstring_t *string);
 
 exit_status_t nstring_clear(const nstring_t *string);
-exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...);
+exit_status_t nstring_set(nstring_t * restrict string, const char * restrict text);
 
 exit_status_t nstring_append(nstring_t *string, const char *text);
 exit_status_t nstring_insert(nstring_t *string, const char *text, uint16_t index);
@@ -72,5 +72,7 @@ exit_status_t nstring_replace_str(nstring_t *string, const char *substr, uint16_
 
 exit_status_t nstring_replace_all_char(nstring_t *string, char c);
 exit_status_t nstring_replace_all_str(nstring_t *string, const char *substr);
+
+exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...);
 
 #endif  // INC_NSTRING_H

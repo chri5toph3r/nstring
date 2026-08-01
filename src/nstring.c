@@ -27,7 +27,7 @@ struct nstring_s_t {
 #define nstring_str_to_struct(str)      ((struct nstring_s_t *)((str) - HEADER_SIZE))
 
 
-exit_status_t nstring_ctor(nstring_t *string, const char *text, uint16_t capacity)
+exit_status_t nstring_ctor(nstring_t * restrict string, const char * restrict text, uint16_t capacity)
 {
     if (string == nullptr)
     {
@@ -198,6 +198,7 @@ exit_status_t nstring_fit(nstring_t *string)
     return nstring_resize(string, nstring_get_length(*string));
 }
 
+
 exit_status_t nstring_clear(const nstring_t *string)
 {
     if (string == nullptr || *string == nullptr)
@@ -214,32 +215,20 @@ exit_status_t nstring_clear(const nstring_t *string)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...)
+exit_status_t nstring_set(nstring_t * restrict string, const char * restrict text)
 {
-    if (string == nullptr || *string == nullptr || format == nullptr)
+    if (string == nullptr || *string == nullptr || text == nullptr)
     {
-        log("string nor format cannot null");
+        log("string nor text cannot null");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
     struct nstring_s_t *nstring = nstring_str_to_struct(*string);
 
-    exit_status_t status = EXIT_STATUS_SUCCESS;
-
-    const size_t format_len = strlen(format);
-    if (format_len > nstring->capacity)
+    const size_t text_len = strlen(text);
+    if (text_len > nstring->capacity)
     {
-        status = nstring_s_resize(&nstring, 2 * format_len);
-        if (exit_err(status))
-        {
-            log("nstring struct resize error");
-            return status;
-        }
-    }
-
-    if (nstring->length > 0)
-    {
-        status = nstring_s_resize(&nstring, format_len);
+        exit_status_t status = nstring_s_resize(&nstring, text_len);
         if (exit_err(status))
         {
             log("nstring struct resize error");
@@ -248,18 +237,26 @@ exit_status_t nstring_from_format(nstring_t * restrict string, const char * rest
         *string = nstring_struct_to_str(nstring);
     }
 
-    va_list args;
-    for (va_start(args, format); *format != '\0'; format ++)
-    {
+    memcpy(nstring->string, text, text_len);
+    nstring->length = text_len;
+    nstring_terminate(nstring);
 
-    }
-
-    va_end(args);
+    return EXIT_STATUS_SUCCESS;
 }
 
 /**
  * INSERTING
  */
+
+static void nstring_s_append_char(struct nstring_s_t *nstring, const char c)
+{
+    assert(nstring != nullptr);
+    assert(c != '\0');
+
+    nstring->string[nstring->length] = c;
+    nstring->length ++;
+    nstring_terminate(nstring);
+}
 
 static void nstring_s_append(struct nstring_s_t *nstring, const char *text, const uint16_t text_len)
 {
@@ -270,6 +267,34 @@ static void nstring_s_append(struct nstring_s_t *nstring, const char *text, cons
     memmove(&nstring->string[nstring->length], text, text_len);
     nstring->length += text_len;
     nstring_terminate(nstring);
+}
+
+exit_status_t nstring_append_char(nstring_t *string, const char c)
+{
+    if (string == nullptr || *string == nullptr || c == '\0')
+    {
+        log("string cannot null and c cannot be a null-terminator");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+
+    if (nstring->length + 1 > nstring->capacity)
+    {
+        exit_status_t status = nstring_s_resize(&nstring, nstring->length + 1);
+        if (exit_err(status))
+        {
+            log("nstring resize error");
+            return status;
+        }
+        *string = nstring_struct_to_str(nstring);
+    }
+
+    nstring_s_append_char(nstring, c);
+
+    logdbg("%s", nstring->string);
+
+    return EXIT_STATUS_SUCCESS;
 }
 
 exit_status_t nstring_append(nstring_t *string, const char *text)
@@ -288,20 +313,23 @@ exit_status_t nstring_append(nstring_t *string, const char *text)
         exit_status_t status = nstring_s_resize(&nstring, nstring->length + text_len);
         if (exit_err(status))
         {
-            log("string nor text cannot null");
+            log("nstring resize error");
             return status;
         }
         *string = nstring_struct_to_str(nstring);
     }
 
-    nstring_s_append(nstring, text, text_len);
+    if (text_len == 1)
+        nstring_s_append_char(nstring, text[0]);
+    else
+        nstring_s_append(nstring, text, text_len);
 
     logdbg("%s", nstring->string);
 
     return EXIT_STATUS_SUCCESS;
 }
 
-static void nstring_s_insert(struct nstring_s_t *nstring, const char *text, const uint16_t index, const uint16_t text_len)
+static void nstring_s_insert_str(struct nstring_s_t *nstring, const char *text, const uint16_t index, const uint16_t text_len)
 {
     assert(nstring != nullptr);
     assert(text != nullptr);
@@ -344,7 +372,7 @@ exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t
     if (index == nstring->length + 1)
         nstring_s_append(nstring, text, text_len);
     else
-        nstring_s_insert(nstring, text, index, text_len);
+        nstring_s_insert_str(nstring, text, index, text_len);
 
     logdbg("%s", nstring->string);
 
@@ -589,4 +617,150 @@ exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
     }
 
     return EXIT_STATUS_SUCCESS;
+}
+
+
+/**
+ * FORMATTING
+ */
+
+exit_status_t nstring_s_format_format_spec(struct nstring_s_t **nstring, const char **format, va_list arguments)
+{
+    assert(nstring != nullptr);
+    assert(*nstring != nullptr);
+    assert(format != nullptr);
+    assert(*format != nullptr);
+
+
+    exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
+    switch (**format)
+    {
+    case '{':
+        status = nstring_append_char((nstring_t*)&(*nstring)->string, '{');
+        if (exit_err(status))
+        {
+            log("nstring append char error")
+        }
+        return status;
+    case ':':
+        status = nstring_s_format_format_spec(nstring, format, arguments);
+        if (exit_err(status))
+        {
+            log("nstring format format spec error")
+        }
+        return status;
+    default:
+        log("invalid format");
+        break;
+    }
+
+    return status;
+}
+
+exit_status_t nstring_s_format_replacement_field(struct nstring_s_t **nstring, const char **format, va_list arguments)
+{
+    assert(nstring != nullptr);
+    assert(*nstring != nullptr);
+    assert(format != nullptr);
+    assert(*format != nullptr);
+
+    exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
+    switch (**format)
+    {
+    case '{':
+        status = nstring_append_char((nstring_t*)&(*nstring)->string, '{');
+        if (exit_err(status))
+        {
+            log("nstring append char error")
+        }
+        return status;
+    case ':':
+        status = nstring_s_format_format_spec(nstring, format, arguments);
+        if (exit_err(status))
+        {
+            log("nstring format format spec error")
+        }
+        return status;
+    default:
+        log("invalid format");
+        break;
+    }
+
+    return status;
+}
+
+exit_status_t nstring_from_format(nstring_t * restrict string, const char * restrict format, ...)
+{
+    if (string == nullptr || *string == nullptr || format == nullptr)
+    {
+        log("string nor format cannot null");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+
+    exit_status_t status = EXIT_STATUS_SUCCESS;
+
+    const size_t format_len = strlen(format);
+    if (format_len > nstring->capacity)
+    {
+        status = nstring_s_resize(&nstring, 2 * format_len);
+        if (exit_err(status))
+        {
+            log("nstring struct resize error");
+            return status;
+        }
+    }
+
+    if (nstring->length > 0)
+    {
+        status = nstring_s_resize(&nstring, format_len);
+        if (exit_err(status))
+        {
+            log("nstring struct resize error");
+            return status;
+        }
+        *string = nstring_struct_to_str(nstring);
+    }
+
+    // width and precision
+    // 10000 >{:9,}> 10,000
+    // 10000 >{:09_}> 000_010_000
+    // 1000.3789 >{:6_.8,}> 1_000.378,9
+    struct
+    {
+        enum { LEFT, RIGHT, CENTER } align;  // < > ^
+        char align_char;  // any char
+        enum { MINUS, PLUS } sign;  // + -
+        bool alt_form;  // #
+        bool zero_pad;  // 0
+    } cursor;
+
+    va_list args;
+    for (va_start(args, format); *format != '\0'; format ++)
+    {
+        if (*format == '{')
+        {
+            status = nstring_s_format_replacement_field(&nstring, &format, args);
+            if (exit_err(status))
+            {
+                log("nstring format replacement field error")
+                goto FORMAT_END;
+            }
+        }
+        else
+        {
+            status = nstring_append_char(string, *format);
+            if (exit_err(status))
+            {
+                log("nstring append char error")
+                goto FORMAT_END;
+            }
+        }
+    }
+
+FORMAT_END:
+    va_end(args);
+
+    return status;
 }
