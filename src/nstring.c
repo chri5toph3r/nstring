@@ -629,20 +629,23 @@ struct nstring_fmt_ctx
     struct nstring_s_t **nstring;
     const char **format;
     va_list *args;
-    enum : uint8_t { LEFT, CENTER, RIGHT } align_dir;  // '<' '^' '>'
+    enum : uint8_t { LEFT, CENTER, RIGHT /*, EQ */ } align_dir;  // '<' '^' '>' /* '=' */
     enum : uint8_t { MINUS, PLUS, SPACE } sign;  // '-' '+' ' '
     char align_char;    // <any char>
     uint16_t width;     // digit+
     bool alt_form;      // '#'
-} ;
-
+};
 
 exit_status_t nstring_s_fmt_f_spec_align(struct nstring_fmt_ctx *context)
 {
     assert(context != nullptr);
 
+    // "... {:b<c ..."
+    //        ^
     context->align_char = **context->format;
 
+    // "... {:b<c ..."
+    //        -^
     (*context->format) ++;
 
     switch (**context->format)
@@ -653,12 +656,47 @@ exit_status_t nstring_s_fmt_f_spec_align(struct nstring_fmt_ctx *context)
     case '^':
         context->align_dir = CENTER;
         break;
+    case '=':  // TODO: to be supported later
+        // context->align_dir = EQ;
+        // break;
     case '>':
         context->align_dir = RIGHT;
         break;
     default:
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
+
+    // "... {:b<c ..."
+    //         -^
+    (*context->format) ++;
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_s_fmt_f_spec_sign(struct nstring_fmt_ctx *context)
+{
+    assert(context != nullptr);
+
+    switch (**context->format)
+    {
+    case '-':
+        context->sign = MINUS;
+        break;
+    case '+':
+        context->sign = PLUS;
+        break;
+    case ' ':
+        context->sign = SPACE;
+        break;
+    default:
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    // "... {:a ..."
+    //        ^
+    // "... {:b<c ..."
+    //          ^
+    (*context->format) ++;
 
     return EXIT_STATUS_SUCCESS;
 }
@@ -667,20 +705,22 @@ exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
 {
     assert(context != nullptr);
 
-    (*context->format) ++;
-
     exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
+    status = nstring_s_fmt_f_spec_align(context);
+    if (exit_err(status))
+    {
+        log("nstring format alignment error")
+        return status;
+    }
+    // "... {:b< ..."
+    //        ^?
     switch (*(*context->format + 1))
     {
     case '<':
     case '^':
     case '>':
-        status = nstring_s_fmt_f_spec_align(context);
-        if (exit_err(status))
-        {
-            log("nstring format alignment error")
-        }
-        return status;
+    case '=':  // TODO: to be supported later
+
     default:
         break;
     }
@@ -689,16 +729,40 @@ exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
     {
     case '+':
     case '-':
-    case '>':
-        status = nstring_s_fmt_f_spec_align(context);
+    case ' ':
+        status = nstring_s_fmt_f_spec_sign(context);
         if (exit_err(status))
         {
-            log("nstring format alignment error")
+            log("nstring format sign error")
+            return status;
         }
-        return status;
+        break;
     default:
         break;
     }
+
+    if (**context->format == 'z')
+    {
+        // TODO: to be supported later
+        (*context->format) ++;
+    }
+
+    context->alt_form = false;
+    if (**context->format == '#')
+    {
+        context->alt_form = true;
+        (*context->format) ++;
+    }
+
+    if (**context->format == '0')
+    {
+        // TODO: to be supported later
+        // context->align_dir = EQ;
+        // context->align_char = '0';
+        (*context->format) ++;
+    }
+
+
 
     return status;
 }
@@ -706,8 +770,6 @@ exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
 exit_status_t nstring_s_fmt_repl_field(struct nstring_fmt_ctx *context)
 {
     assert(context != nullptr);
-
-    (*context->format) ++;
 
     exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
     switch (**context->format)
@@ -720,6 +782,9 @@ exit_status_t nstring_s_fmt_repl_field(struct nstring_fmt_ctx *context)
         }
         return status;
     case ':':
+        // "... {:a ..."
+        //       -^
+        (*context->format) ++;
         status = nstring_s_fmt_f_spec(context);
         if (exit_err(status))
         {
@@ -779,6 +844,7 @@ exit_status_t nstring_from_format(nstring_t *string, const char *format, ...)
             context.format = &format;
             context.args = &args;
 
+            format ++;
             status = nstring_s_fmt_repl_field(&context);
             if (exit_err(status))
             {
