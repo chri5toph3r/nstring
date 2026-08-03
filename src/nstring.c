@@ -18,13 +18,13 @@ struct nstring_s_t {
 };
 
 
-#define HEADER_SIZE                     4
-#define MAX_TEXT_LENGTH                 UINT16_MAX
+#define NSTRING_HEADER_SIZE             4
+#define NSTRING_MAX_TEXT_LENGTH         UINT16_MAX
 
-#define nstring_size(cap)               (HEADER_SIZE + (cap) + 1)
+#define nstring_size(cap)               (NSTRING_HEADER_SIZE + (cap) + 1)
 #define nstring_terminate(nstr)         ((nstr)->string[(nstr)->length] = '\0')
 #define nstring_struct_to_str(nstr)     ((nstring_t)((nstr)->string))
-#define nstring_str_to_struct(str)      ((struct nstring_s_t *)((str) - HEADER_SIZE))
+#define nstring_str_to_struct(str)      ((struct nstring_s_t *)((str) - NSTRING_HEADER_SIZE))
 
 
 exit_status_t nstring_ctor(nstring_t * restrict string, const char * restrict text, uint16_t capacity)
@@ -624,6 +624,8 @@ exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
  * FORMATTING
  */
 
+typedef enum { NONE, COMMA, UNDERSCORE} fmt_grouping;
+
 struct nstring_fmt_ctx
 {
     struct nstring_s_t **nstring;
@@ -633,6 +635,9 @@ struct nstring_fmt_ctx
     enum : uint8_t { MINUS, PLUS, SPACE } sign;  // '-' '+' ' '
     char align_char;    // <any char>
     uint16_t width;     // digit+
+    fmt_grouping width_grp;
+    uint16_t prec; // digit+
+    fmt_grouping prec_grp;
     bool alt_form;      // '#'
 };
 
@@ -663,6 +668,7 @@ exit_status_t nstring_s_fmt_f_spec_align(struct nstring_fmt_ctx *context)
         context->align_dir = RIGHT;
         break;
     default:
+        log("invalid alignment direction symbol");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
@@ -689,6 +695,7 @@ exit_status_t nstring_s_fmt_f_spec_sign(struct nstring_fmt_ctx *context)
         context->sign = SPACE;
         break;
     default:
+        log("invalid sign symbol");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
@@ -701,17 +708,109 @@ exit_status_t nstring_s_fmt_f_spec_sign(struct nstring_fmt_ctx *context)
     return EXIT_STATUS_SUCCESS;
 }
 
+exit_status_t nstring_s_fmt_f_spec_width(struct nstring_fmt_ctx *context)
+{
+    assert(context != nullptr);
+
+    size_t width = 0;
+    for(; **context->format != '\0'; (*context->format) ++)
+    {
+        if (isdigit(**context->format))
+            width = width * 10 + (**context->format - '0');
+        else
+        {
+            if (**context->format == '_')
+                context->width_grp = UNDERSCORE;
+            else if (**context->format == ',')
+                context->width_grp = COMMA;
+            else
+                context->width_grp = NONE;
+
+            break;
+        }
+    }
+
+    if (width > NSTRING_MAX_TEXT_LENGTH)
+    {
+        log("width bigger than allowed text length");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    context->width = (uint16_t)width;
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_s_fmt_f_spec_prec(struct nstring_fmt_ctx *context)
+{
+    assert(context != nullptr);
+
+    size_t prec = 0;
+    for(; **context->format != '\0'; (*context->format) ++)
+    {
+        if (isdigit(**context->format))
+            prec = prec * 10 + (**context->format - '0');
+        else
+        {
+            if (**context->format == '_')
+                context->prec_grp = UNDERSCORE;
+            else if (**context->format == ',')
+                context->prec_grp = COMMA;
+            else
+                context->prec_grp = NONE;
+
+            break;
+        }
+    }
+
+    if (prec > NSTRING_MAX_TEXT_LENGTH)
+    {
+        log("width bigger than allowed text length");
+        return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    context->prec = (uint16_t)prec;
+
+    return EXIT_STATUS_SUCCESS;
+}
+
+exit_status_t nstring_s_fmt_f_spec_type(struct nstring_fmt_ctx *context)
+{
+    assert(context != nullptr);
+
+    switch (**context->format)
+    {
+        case 'b':
+        case 'c':
+        case 'd':
+        case 'e':
+        case 'E':
+        case 'f':
+        case 'F':
+        case 'g':
+        case 'G':
+        case 'n':
+        case 'o':
+        case 's':
+        case 'x':
+        case 'X':
+        case '%':
+            break;
+        default:
+            log("invalid sign symbol");
+            return EXIT_STATUS_INVALID_ARGUMENT;
+    }
+
+    (*context->format) ++;
+
+    return EXIT_STATUS_SUCCESS;
+}
+
 exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
 {
     assert(context != nullptr);
 
     exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
-    status = nstring_s_fmt_f_spec_align(context);
-    if (exit_err(status))
-    {
-        log("nstring format alignment error")
-        return status;
-    }
     // "... {:b< ..."
     //        ^?
     switch (*(*context->format + 1))
@@ -720,7 +819,12 @@ exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
     case '^':
     case '>':
     case '=':  // TODO: to be supported later
-
+        status = nstring_s_fmt_f_spec_align(context);
+        if (exit_err(status))
+        {
+            log("nstring format alignment error")
+            return status;
+        }
     default:
         break;
     }
@@ -760,6 +864,27 @@ exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
         // context->align_dir = EQ;
         // context->align_char = '0';
         (*context->format) ++;
+    }
+
+    if (isdigit(**context->format))
+    {
+        status = nstring_s_fmt_f_spec_width(context);
+        if (exit_err(status))
+        {
+            log("nstring format width error")
+            return status;
+        }
+    }
+
+    if (**context->format == '.')
+    {
+        (*context->format) ++;
+        status = nstring_s_fmt_f_spec_prec(context);
+        if (exit_err(status))
+        {
+            log("nstring format alignment error")
+            return status;
+        }
     }
 
 
