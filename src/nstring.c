@@ -624,7 +624,7 @@ exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
  * FORMATTING
  */
 
-typedef enum { NONE, COMMA, UNDERSCORE} fmt_grouping;
+typedef enum { NONE, COMMA, UNDERSCORE} nstring_fmt_grp;
 
 struct nstring_fmt_ctx
 {
@@ -635,9 +635,10 @@ struct nstring_fmt_ctx
     enum : uint8_t { MINUS, PLUS, SPACE } sign;  // '-' '+' ' '
     char align_char;    // <any char>
     uint16_t width;     // digit+
-    fmt_grouping width_grp;
-    uint16_t prec; // digit+
-    fmt_grouping prec_grp;
+    nstring_fmt_grp width_grp;
+    uint16_t prec;      // digit+
+    nstring_fmt_grp prec_grp;
+    bool prec_fit;      // no prec specified
     bool alt_form;      // '#'
 };
 
@@ -720,9 +721,15 @@ exit_status_t nstring_s_fmt_f_spec_width(struct nstring_fmt_ctx *context)
         else
         {
             if (**context->format == '_')
+            {
                 context->width_grp = UNDERSCORE;
+                (*context->format) ++;
+            }
             else if (**context->format == ',')
+            {
                 context->width_grp = COMMA;
+                (*context->format) ++;
+            }
             else
                 context->width_grp = NONE;
 
@@ -745,31 +752,36 @@ exit_status_t nstring_s_fmt_f_spec_prec(struct nstring_fmt_ctx *context)
 {
     assert(context != nullptr);
 
-    size_t prec = 0;
-    for(; **context->format != '\0'; (*context->format) ++)
+    context->prec_fit = !isdigit(**context->format);
+    if (!context->prec_fit)
     {
-        if (isdigit(**context->format))
-            prec = prec * 10 + (**context->format - '0');
-        else
+        size_t prec = (**context->format - '0');
+        for((*context->format) ++; isdigit(**context->format); (*context->format) ++)
         {
-            if (**context->format == '_')
-                context->prec_grp = UNDERSCORE;
-            else if (**context->format == ',')
-                context->prec_grp = COMMA;
-            else
-                context->prec_grp = NONE;
-
-            break;
+            prec = prec * 10 + (**context->format - '0');
         }
+
+        if (prec > NSTRING_MAX_TEXT_LENGTH)
+        {
+            log("width bigger than allowed text length");
+            return EXIT_STATUS_INVALID_ARGUMENT;
+        }
+
+        context->prec = (uint16_t)prec;
     }
 
-    if (prec > NSTRING_MAX_TEXT_LENGTH)
+    if (**context->format == '_')
     {
-        log("width bigger than allowed text length");
-        return EXIT_STATUS_INVALID_ARGUMENT;
+        context->width_grp = UNDERSCORE;
+        (*context->format) ++;
     }
-
-    context->prec = (uint16_t)prec;
+    else if (**context->format == ',')
+    {
+        context->width_grp = COMMA;
+        (*context->format) ++;
+    }
+    else
+        context->width_grp = NONE;
 
     return EXIT_STATUS_SUCCESS;
 }
@@ -778,27 +790,40 @@ exit_status_t nstring_s_fmt_f_spec_type(struct nstring_fmt_ctx *context)
 {
     assert(context != nullptr);
 
+    bool is_unsigned = false;
+    if (**context->format == 'u')
+    {
+        is_unsigned = true;
+        (*context->format) ++;
+    }
+
     switch (**context->format)
     {
-        case 'b':
-        case 'c':
-        case 'd':
-        case 'e':
-        case 'E':
-        case 'f':
-        case 'F':
-        case 'g':
-        case 'G':
-        case 'n':
-        case 'o':
-        case 's':
-        case 'x':
-        case 'X':
-        case '%':
-            break;
-        default:
-            log("invalid sign symbol");
-            return EXIT_STATUS_INVALID_ARGUMENT;
+    case 'b':  // [u]b[8|16|32|64|128] - sign problem
+    case 'c':  // char
+        va_arg(*context->args, char);
+    case 'd':  // [u]d[8|16|32|64|128] - sign problem
+    case 'e':  // e[f|d]
+    case 'E':  // E[f|d]
+    case 'f':  // f[f|d]
+    case 'F':  // F[f|d]
+    case 'g':  // TODO:
+    case 'G':  // TODO:
+    case 'n':  // TODO:
+    case 'o':  // [u]o[8|16|32|64|128] - sign problem
+    case 'p':  // void *
+        va_arg(*context->args, void *);
+        break;
+    case 's':  // const char *
+        va_arg(*context->args, char *);
+        break;
+    case 'x':  // [u]x[8|16|32|64|128] - sign problem
+    case 'X':  // [u]X[8|16|32|64|128] - sign problem
+    case '%':  // %[f|d]
+        break;
+    default:
+        log("invalid sign symbol");
+        return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
     (*context->format) ++;
