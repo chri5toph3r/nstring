@@ -786,6 +786,27 @@ exit_status_t nstring_s_fmt_f_spec_prec(struct nstring_fmt_ctx *context)
     return EXIT_STATUS_SUCCESS;
 }
 
+
+
+exit_status_t nstring_s_fmt_f_spec_type_numeric(struct nstring_fmt_ctx *context, bool is_unsigned)
+{
+    assert(context != nullptr);
+
+    if (is_unsigned)
+    {
+        uint64_t number = (*(*context->format + 1) == 'l') ?
+                va_arg(*context->args, uint64_t)
+                : va_arg(*context->args, uint32_t);
+    }
+    else
+    {
+        int64_t number = (*(*context->format + 1) == 'l') ?
+                va_arg(*context->args, int64_t)
+                : va_arg(*context->args, int32_t);
+    }
+
+}
+
 exit_status_t nstring_s_fmt_f_spec_type(struct nstring_fmt_ctx *context)
 {
     assert(context != nullptr);
@@ -799,27 +820,31 @@ exit_status_t nstring_s_fmt_f_spec_type(struct nstring_fmt_ctx *context)
 
     switch (**context->format)
     {
-    case 'b':  // [u]b[8|16|32|64|128] - sign problem
+    case 'b':  // [u]b[l]
     case 'c':  // char
-        va_arg(*context->args, char);
-    case 'd':  // [u]d[8|16|32|64|128] - sign problem
-    case 'e':  // e[f|d]
-    case 'E':  // E[f|d]
-    case 'f':  // f[f|d]
-    case 'F':  // F[f|d]
+        char c = va_arg(*context->args, int);
+        break;
+    case 'd':  // [u]d[l]
+        break;
+    case 'e':  // e
+    case 'E':  // E
+    case 'f':  // f
+    case 'F':  // F
+        double f = va_arg(*context->args, double);
+        break;
     case 'g':  // TODO:
     case 'G':  // TODO:
     case 'n':  // TODO:
-    case 'o':  // [u]o[8|16|32|64|128] - sign problem
+    case 'o':  // [u]o[l]
     case 'p':  // void *
-        va_arg(*context->args, void *);
+        void *p = va_arg(*context->args, void *);
         break;
     case 's':  // const char *
-        va_arg(*context->args, char *);
+        const char *s = va_arg(*context->args, char *);
         break;
-    case 'x':  // [u]x[8|16|32|64|128] - sign problem
-    case 'X':  // [u]X[8|16|32|64|128] - sign problem
-    case '%':  // %[f|d]
+    case 'x':  // [u]x[l]
+    case 'X':  // [u]X[l]
+    case '%':  // %
         break;
     default:
         log("invalid sign symbol");
