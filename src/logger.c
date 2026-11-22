@@ -8,12 +8,12 @@
 #include "logger.h"
 
 
-void logger_log(const bool dbg, const char *file, const char *func, const int line, const char *format, ...)
+void logger_log(const bool dbg, const char* file, const char* func, const int line, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
 
-    FILE *out = stdout;
+    FILE* out = stdout;
 
     fprintf(out, "[%s] %s/%s():%d: ", (dbg ? "DBG" : "LOG"), file, func, line);
 

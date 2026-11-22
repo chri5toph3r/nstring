@@ -11,10 +11,11 @@
 #include <ctype.h>
 
 
-struct nstring_s_t {
-    uint16_t length;    /** string length without '\0' */
-    uint16_t capacity;  /** maximum string length without '\0' */
-    char string[];      /** nstring content */
+struct nstring_s_t
+{
+    uint16_t length; /** string length without '\0' */
+    uint16_t capacity; /** maximum string length without '\0' */
+    char string[]; /** nstring content */
 };
 
 
@@ -27,7 +28,7 @@ struct nstring_s_t {
 #define nstring_str_to_struct(str)      ((struct nstring_s_t *)((str) - NSTRING_HEADER_SIZE))
 
 
-exit_status_t nstring_ctor(nstring_t * restrict string, const char * restrict text, uint16_t capacity)
+exit_status_t nstring_ctor(nstring_t* restrict string, const char* restrict text, uint16_t capacity)
 {
     if (string == nullptr)
     {
@@ -49,7 +50,7 @@ exit_status_t nstring_ctor(nstring_t * restrict string, const char * restrict te
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = malloc(nstring_size(capacity));
+    struct nstring_s_t* nstring = malloc(nstring_size(capacity));
     if (nstring == nullptr)
     {
         log("malloc error");
@@ -71,7 +72,7 @@ exit_status_t nstring_ctor(nstring_t * restrict string, const char * restrict te
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_dtor(nstring_t *string)
+exit_status_t nstring_dtor(nstring_t* string)
 {
     if (string == nullptr || *string == nullptr)
     {
@@ -86,7 +87,7 @@ exit_status_t nstring_dtor(nstring_t *string)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_copy(nstring_t *string, const cnstring_t other)
+exit_status_t nstring_copy(nstring_t* string, const cnstring_t other)
 {
     if (string == nullptr || *string == nullptr || other == nullptr)
     {
@@ -94,7 +95,7 @@ exit_status_t nstring_copy(nstring_t *string, const cnstring_t other)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    const struct nstring_s_t *another = nstring_str_to_struct(other);
+    const struct nstring_s_t* another = nstring_str_to_struct(other);
 
     exit_status_t status = nstring_ctor(string, another->string, another->capacity);
     if (exit_err(status))
@@ -106,7 +107,7 @@ exit_status_t nstring_copy(nstring_t *string, const cnstring_t other)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_move(nstring_t *src, nstring_t *dst)
+exit_status_t nstring_move(nstring_t* src, nstring_t* dst)
 {
     if (src == nullptr || *src == nullptr || dst == nullptr)
     {
@@ -151,28 +152,29 @@ exit_status_t nstring_get_capacity(const cnstring_t string)
  * SIZE MANIPULATION
  */
 
-static exit_status_t nstring_s_resize(struct nstring_s_t **nstring, const uint16_t capacity)
+static exit_status_t nstring_s_resize(struct nstring_s_t** nstring, const uint16_t capacity)
 {
     assert(nstring != nullptr);
     assert(*nstring != nullptr);
     assert(capacity > 0);
 
-    if ((*nstring)->capacity != capacity)
+    if ((*nstring)->capacity == capacity)
+        return EXIT_STATUS_SUCCESS;
+
+    struct nstring_s_t* temp = realloc(*nstring, nstring_size(capacity));
+    if (temp == nullptr)
     {
-        struct nstring_s_t *temp = realloc(*nstring, nstring_size(capacity));
-        if (temp == nullptr)
-        {
-            log("realloc error");
-            return EXIT_STATUS_OS_FAILURE;
-        }
-        *nstring = temp;
-        (*nstring)->capacity = capacity;
+        log("realloc error");
+        return EXIT_STATUS_OS_FAILURE;
     }
+
+    *nstring = temp;
+    (*nstring)->capacity = capacity;
 
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_resize(nstring_t *string, const uint16_t capacity)
+exit_status_t nstring_resize(nstring_t* string, const uint16_t capacity)
 {
     if (string == nullptr || *string == nullptr || capacity == 0)
     {
@@ -180,8 +182,8 @@ exit_status_t nstring_resize(nstring_t *string, const uint16_t capacity)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
-    exit_status_t status = nstring_s_resize(&nstring, capacity);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
+    const exit_status_t status = nstring_s_resize(&nstring, capacity);
     if (exit_err(status))
     {
         log("string nor text cannot null");
@@ -193,13 +195,13 @@ exit_status_t nstring_resize(nstring_t *string, const uint16_t capacity)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_fit(nstring_t *string)
+exit_status_t nstring_fit(nstring_t* string)
 {
     return nstring_resize(string, nstring_get_length(*string));
 }
 
 
-exit_status_t nstring_clear(const nstring_t *string)
+exit_status_t nstring_clear(const nstring_t* string)
 {
     if (string == nullptr || *string == nullptr)
     {
@@ -207,7 +209,7 @@ exit_status_t nstring_clear(const nstring_t *string)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     nstring->length = 0;
     nstring_terminate(nstring);
@@ -215,7 +217,7 @@ exit_status_t nstring_clear(const nstring_t *string)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_set(nstring_t * restrict string, const char * restrict text)
+exit_status_t nstring_set(nstring_t* restrict string, const char* restrict text)
 {
     if (string == nullptr || *string == nullptr || text == nullptr)
     {
@@ -223,7 +225,7 @@ exit_status_t nstring_set(nstring_t * restrict string, const char * restrict tex
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     const size_t text_len = strlen(text);
     if (text_len > nstring->capacity)
@@ -248,28 +250,30 @@ exit_status_t nstring_set(nstring_t * restrict string, const char * restrict tex
  * INSERTING
  */
 
-static void nstring_s_append_char(struct nstring_s_t *nstring, const char c)
+static void nstring_s_append_char(struct nstring_s_t* nstring, const char c)
 {
     assert(nstring != nullptr);
     assert(c != '\0');
+    assert(nstring->length + 1 <= nstring->capacity);
 
     nstring->string[nstring->length] = c;
     nstring->length ++;
     nstring_terminate(nstring);
 }
 
-static void nstring_s_append(struct nstring_s_t *nstring, const char *text, const uint16_t text_len)
+static void nstring_s_append(struct nstring_s_t* nstring, const char* text, const uint16_t text_len)
 {
     assert(nstring != nullptr);
     assert(text != nullptr);
     assert(text_len != 0);
+    assert(nstring->length + text_len <= nstring->capacity);
 
     memmove(&nstring->string[nstring->length], text, text_len);
     nstring->length += text_len;
     nstring_terminate(nstring);
 }
 
-exit_status_t nstring_append_char(nstring_t *string, const char c)
+exit_status_t nstring_append_char(nstring_t* string, const char c)
 {
     if (string == nullptr || *string == nullptr || c == '\0')
     {
@@ -277,7 +281,7 @@ exit_status_t nstring_append_char(nstring_t *string, const char c)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     if (nstring->length + 1 > nstring->capacity)
     {
@@ -297,7 +301,7 @@ exit_status_t nstring_append_char(nstring_t *string, const char c)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_append(nstring_t *string, const char *text)
+exit_status_t nstring_append(nstring_t* string, const char* text)
 {
     if (string == nullptr || *string == nullptr || text == nullptr)
     {
@@ -305,7 +309,7 @@ exit_status_t nstring_append(nstring_t *string, const char *text)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     const uint16_t text_len = strlen(text);
     if (nstring->length + text_len > nstring->capacity)
@@ -329,7 +333,8 @@ exit_status_t nstring_append(nstring_t *string, const char *text)
     return EXIT_STATUS_SUCCESS;
 }
 
-static void nstring_s_insert_str(struct nstring_s_t *nstring, const char *text, const uint16_t index, const uint16_t text_len)
+static void nstring_s_insert_str(struct nstring_s_t* nstring, const char* text, const uint16_t index,
+                                 const uint16_t text_len)
 {
     assert(nstring != nullptr);
     assert(text != nullptr);
@@ -341,7 +346,7 @@ static void nstring_s_insert_str(struct nstring_s_t *nstring, const char *text, 
     nstring_terminate(nstring);
 }
 
-exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t index)
+exit_status_t nstring_insert(nstring_t* string, const char* text, const uint16_t index)
 {
     if (string == nullptr || *string == nullptr || text == nullptr)
     {
@@ -349,7 +354,7 @@ exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     if (index > nstring->length + 1)
     {
@@ -379,7 +384,7 @@ exit_status_t nstring_insert(nstring_t *string, const char *text, const uint16_t
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_rtrim(const nstring_t *string)
+exit_status_t nstring_rtrim(const nstring_t* string)
 {
     if (string == nullptr || *string == nullptr)
     {
@@ -387,11 +392,12 @@ exit_status_t nstring_rtrim(const nstring_t *string)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     uint16_t new_len = nstring->length - 1;
     for (; new_len > 0 && isspace(nstring->string[new_len]); new_len --)
-    { }
+    {
+    }
 
     nstring->length = new_len + 1;
     nstring_terminate(nstring);
@@ -405,7 +411,7 @@ exit_status_t nstring_rtrim(const nstring_t *string)
  * WHITESPACE TRIMMING
  */
 
-exit_status_t nstring_ltrim(const nstring_t *string)
+exit_status_t nstring_ltrim(const nstring_t* string)
 {
     if (string == nullptr || *string == nullptr)
     {
@@ -413,11 +419,12 @@ exit_status_t nstring_ltrim(const nstring_t *string)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     uint16_t ltrim_len = 0;
     for (; ltrim_len < nstring->length && isspace(nstring->string[ltrim_len]); ltrim_len ++)
-    { }
+    {
+    }
 
     nstring->length = nstring->length - ltrim_len;
     memmove(nstring->string, nstring->string + ltrim_len, nstring->length + 1);
@@ -425,7 +432,7 @@ exit_status_t nstring_ltrim(const nstring_t *string)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_trim(const nstring_t *string)
+exit_status_t nstring_trim(const nstring_t* string)
 {
     if (string == nullptr || *string == nullptr)
     {
@@ -450,7 +457,7 @@ exit_status_t nstring_trim(const nstring_t *string)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_starts_with(const cnstring_t string, const char *substr)
+exit_status_t nstring_starts_with(const cnstring_t string, const char* substr)
 {
     if (string == nullptr || substr == nullptr)
     {
@@ -458,7 +465,7 @@ exit_status_t nstring_starts_with(const cnstring_t string, const char *substr)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    const struct nstring_s_t *nstring = nstring_str_to_struct(string);
+    const struct nstring_s_t* nstring = nstring_str_to_struct(string);
 
     const size_t substr_len = strlen(substr);
     if (substr_len > nstring->length)
@@ -476,7 +483,7 @@ exit_status_t nstring_starts_with(const cnstring_t string, const char *substr)
     return true;
 }
 
-exit_status_t nstring_ends_with(const cnstring_t string, const char *substr)
+exit_status_t nstring_ends_with(const cnstring_t string, const char* substr)
 {
     if (string == nullptr || substr == nullptr)
     {
@@ -484,7 +491,7 @@ exit_status_t nstring_ends_with(const cnstring_t string, const char *substr)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    const struct nstring_s_t *nstring = nstring_str_to_struct(string);
+    const struct nstring_s_t* nstring = nstring_str_to_struct(string);
 
     const size_t substr_len = strlen(substr);
     if (substr_len > nstring->length)
@@ -494,7 +501,7 @@ exit_status_t nstring_ends_with(const cnstring_t string, const char *substr)
     }
 
     for (uint16_t idx = nstring->length, sub_idx = (uint16_t)substr_len;
-        sub_idx > 0; idx ++, sub_idx ++)
+         sub_idx > 0; idx ++, sub_idx ++)
     {
         if (nstring->string[idx] != substr[idx])
             return false;
@@ -517,7 +524,7 @@ exit_status_t nstring_find_char(const cnstring_t string, const char c, const uin
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(string);
 
     if (start > nstring->length)
     {
@@ -534,7 +541,7 @@ exit_status_t nstring_find_char(const cnstring_t string, const char c, const uin
     return EXIT_STATUS_NOT_FOUND;
 }
 
-exit_status_t nstring_count_char(nstring_t *string, const char c)
+exit_status_t nstring_count_char(nstring_t* string, const char c)
 {
     if (string == nullptr)
     {
@@ -548,7 +555,7 @@ exit_status_t nstring_count_char(nstring_t *string, const char c)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(string);
 
     uint16_t count = 0;
     for (uint16_t idx = 0; idx < nstring->length; idx ++)
@@ -560,7 +567,7 @@ exit_status_t nstring_count_char(nstring_t *string, const char c)
     return count;
 }
 
-exit_status_t nstring_replace_char(nstring_t *string, const char c, const uint16_t start)
+exit_status_t nstring_replace_char(nstring_t* string, const char c, const uint16_t start)
 {
     if (string == nullptr)
     {
@@ -574,7 +581,7 @@ exit_status_t nstring_replace_char(nstring_t *string, const char c, const uint16
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(string);
 
     if (start > nstring->length)
     {
@@ -594,7 +601,7 @@ exit_status_t nstring_replace_char(nstring_t *string, const char c, const uint16
     return EXIT_STATUS_NOT_FOUND;
 }
 
-exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
+exit_status_t nstring_replace_all_char(nstring_t* string, const char c)
 {
     if (string == nullptr)
     {
@@ -608,7 +615,7 @@ exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(string);
 
     for (uint16_t idx = 0; idx < nstring->length; idx ++)
     {
@@ -619,42 +626,59 @@ exit_status_t nstring_replace_all_char(nstring_t *string, const char c)
     return EXIT_STATUS_SUCCESS;
 }
 
+// exit_status_t
+// lltoa(struct nstring_s_t *nstring, long long int number, uint8_t base)
+// {
+//     assert(nstring != nullptr);
+//
+//     size_t i = 0;
+//     int digit;
+//     if (nstring->length == 0)
+//         return -1;
+//     do
+//     {
+//         digit = number % base;
+//         if (digit < 0xA)
+//             str[i++] = '0' + digit;
+//         else
+//             str[i++] = 'A' + digit - 0xA;
+//         number /= base;
+//     }while (number && (i < (len - 1)));
+//     if (i == (len - 1) && number)
+//         return -1;
+//     str[i] = '\0';
+//     strrev(str);
+//     return 0;
+// }
 
 /**
  * FORMATTING
  */
 
-typedef enum { NONE, COMMA, UNDERSCORE} nstring_fmt_grp;
+typedef enum { NONE, COMMA, UNDERSCORE } nstring_fmt_grp;
 
 struct nstring_fmt_ctx
 {
-    struct nstring_s_t **nstring;
-    const char **format;
-    va_list *args;
-    enum : uint8_t { LEFT, CENTER, RIGHT /*, EQ */ } align_dir;  // '<' '^' '>' /* '=' */
-    enum : uint8_t { MINUS, PLUS, SPACE } sign;  // '-' '+' ' '
-    char align_char;    // <any char>
-    uint16_t width;     // digit+
+    struct nstring_s_t** nstring;
+    const char** format;
+    va_list* args;
+
+    enum : uint8_t { LEFT, CENTER, RIGHT /*, EQ */ } align_dir; // '<' '^' '>' /* '=' */
+    enum : uint8_t { MINUS, PLUS, SPACE } sign; // '-' '+' ' '
+    char align_char; // <any char>
+    uint16_t width; // digit+
     nstring_fmt_grp width_grp;
-    uint16_t prec;      // digit+
+    uint16_t prec; // digit+
     nstring_fmt_grp prec_grp;
-    bool prec_fit;      // no prec specified
-    bool alt_form;      // '#'
+    bool prec_fit; // no prec specified
+    bool alt_form; // '#'
 };
 
-exit_status_t nstring_s_fmt_f_spec_align(struct nstring_fmt_ctx *context)
+exit_status_t nstring_s_fmt_f_spec_align(struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
 
-    // "... {:b<c ..."
-    //        ^
-    context->align_char = **context->format;
-
-    // "... {:b<c ..."
-    //        -^
-    (*context->format) ++;
-
-    switch (**context->format)
+    switch (**context->format + 1)
     {
     case '<':
         context->align_dir = LEFT;
@@ -662,25 +686,29 @@ exit_status_t nstring_s_fmt_f_spec_align(struct nstring_fmt_ctx *context)
     case '^':
         context->align_dir = CENTER;
         break;
-    case '=':  // TODO: to be supported later
-        // context->align_dir = EQ;
-        // break;
+    case '=': // TODO: to be supported later
+    // context->align_dir = EQ;
+    // break;
     case '>':
         context->align_dir = RIGHT;
         break;
     default:
-        log("invalid alignment direction symbol");
-        return EXIT_STATUS_INVALID_ARGUMENT;
+        return EXIT_STATUS_PASS;
     }
 
     // "... {:b<c ..."
-    //         -^
-    (*context->format) ++;
+    //        ^
+    context->align_char = **context->format;
+
+    // "... {:b<c ..."
+    //        --^
+    *context->format += 2;
+
 
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_s_fmt_f_spec_sign(struct nstring_fmt_ctx *context)
+exit_status_t nstring_s_fmt_f_spec_sign(struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
 
@@ -696,8 +724,7 @@ exit_status_t nstring_s_fmt_f_spec_sign(struct nstring_fmt_ctx *context)
         context->sign = SPACE;
         break;
     default:
-        log("invalid sign symbol");
-        return EXIT_STATUS_INVALID_ARGUMENT;
+        return EXIT_STATUS_PASS;
     }
 
     // "... {:a ..."
@@ -709,12 +736,12 @@ exit_status_t nstring_s_fmt_f_spec_sign(struct nstring_fmt_ctx *context)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_s_fmt_f_spec_width(struct nstring_fmt_ctx *context)
+exit_status_t nstring_s_fmt_f_spec_width(struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
 
     size_t width = 0;
-    for(; **context->format != '\0'; (*context->format) ++)
+    for (; **context->format != '\0'; (*context->format) ++)
     {
         if (isdigit(**context->format))
             width = width * 10 + (**context->format - '0');
@@ -748,15 +775,15 @@ exit_status_t nstring_s_fmt_f_spec_width(struct nstring_fmt_ctx *context)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_s_fmt_f_spec_prec(struct nstring_fmt_ctx *context)
+exit_status_t nstring_s_fmt_f_spec_prec(struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
 
     context->prec_fit = !isdigit(**context->format);
     if (!context->prec_fit)
     {
-        size_t prec = (**context->format - '0');
-        for((*context->format) ++; isdigit(**context->format); (*context->format) ++)
+        size_t prec = **context->format - '0';
+        for ((*context->format) ++; isdigit(**context->format); (*context->format) ++)
         {
             prec = prec * 10 + (**context->format - '0');
         }
@@ -772,82 +799,63 @@ exit_status_t nstring_s_fmt_f_spec_prec(struct nstring_fmt_ctx *context)
 
     if (**context->format == '_')
     {
-        context->width_grp = UNDERSCORE;
+        context->prec_grp = UNDERSCORE;
         (*context->format) ++;
     }
     else if (**context->format == ',')
     {
-        context->width_grp = COMMA;
+        context->prec_grp = COMMA;
         (*context->format) ++;
     }
     else
-        context->width_grp = NONE;
+        context->prec_grp = NONE;
 
     return EXIT_STATUS_SUCCESS;
 }
 
-
-
-exit_status_t nstring_s_fmt_f_spec_type_numeric(struct nstring_fmt_ctx *context, bool is_unsigned)
+exit_status_t nstring_s_fmt_f_spec_type_numeric(const struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
 
-    if (is_unsigned)
-    {
-        uint64_t number = (*(*context->format + 1) == 'l') ?
-                va_arg(*context->args, uint64_t)
-                : va_arg(*context->args, uint32_t);
-    }
-    else
-    {
-        int64_t number = (*(*context->format + 1) == 'l') ?
-                va_arg(*context->args, int64_t)
-                : va_arg(*context->args, int32_t);
-    }
-
+    long long int number = (*(*context->format + 1) == 'l')
+                               ? va_arg(*context->args, long int)
+                               : va_arg(*context->args, int);
 }
 
-exit_status_t nstring_s_fmt_f_spec_type(struct nstring_fmt_ctx *context)
+exit_status_t nstring_s_fmt_f_spec_type(const struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
-
-    bool is_unsigned = false;
-    if (**context->format == 'u')
-    {
-        is_unsigned = true;
-        (*context->format) ++;
-    }
 
     switch (**context->format)
     {
-    case 'b':  // [u]b[l]
-    case 'c':  // char
+    case 'b': // b[l]
+    case 'c': // char
         char c = va_arg(*context->args, int);
         break;
-    case 'd':  // [u]d[l]
+    case 'd': // d[l]
         break;
-    case 'e':  // e
-    case 'E':  // E
-    case 'f':  // f
-    case 'F':  // F
+    case 'e': // e
+    case 'E': // E
+    case 'f': // f
+    case 'F': // F
         double f = va_arg(*context->args, double);
         break;
-    case 'g':  // TODO:
-    case 'G':  // TODO:
-    case 'n':  // TODO:
-    case 'o':  // [u]o[l]
-    case 'p':  // void *
-        void *p = va_arg(*context->args, void *);
+    case 'g': // TODO:
+    case 'G': // TODO:
+    case 'n': // TODO:
+    case 'o': // o[l]
+    case 'p': // void *
+        void* p = va_arg(*context->args, void *);
         break;
-    case 's':  // const char *
-        const char *s = va_arg(*context->args, char *);
+    case 's': // const char *
+        const char* s = va_arg(*context->args, char *);
         break;
-    case 'x':  // [u]x[l]
-    case 'X':  // [u]X[l]
-    case '%':  // %
+    case 'x': // x[l]
+    case 'X': // X[l]
+    case '%': // %
         break;
     default:
-        log("invalid sign symbol");
+        log("invalid type symbol");
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
@@ -856,43 +864,26 @@ exit_status_t nstring_s_fmt_f_spec_type(struct nstring_fmt_ctx *context)
     return EXIT_STATUS_SUCCESS;
 }
 
-exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
+exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
 
     exit_status_t status = EXIT_STATUS_INVALID_ARGUMENT;
+
     // "... {:b< ..."
     //        ^?
-    switch (*(*context->format + 1))
+    status = nstring_s_fmt_f_spec_align(context);
+    if (exit_err(status))
     {
-    case '<':
-    case '^':
-    case '>':
-    case '=':  // TODO: to be supported later
-        status = nstring_s_fmt_f_spec_align(context);
-        if (exit_err(status))
-        {
-            log("nstring format alignment error")
-            return status;
-        }
-    default:
-        break;
+        log("nstring format alignment error")
+        return status;
     }
 
-    switch (**context->format)
+    status = nstring_s_fmt_f_spec_sign(context);
+    if (exit_err(status))
     {
-    case '+':
-    case '-':
-    case ' ':
-        status = nstring_s_fmt_f_spec_sign(context);
-        if (exit_err(status))
-        {
-            log("nstring format sign error")
-            return status;
-        }
-        break;
-    default:
-        break;
+        log("nstring format sign error")
+        return status;
     }
 
     if (**context->format == 'z')
@@ -938,11 +929,10 @@ exit_status_t nstring_s_fmt_f_spec(struct nstring_fmt_ctx *context)
     }
 
 
-
     return status;
 }
 
-exit_status_t nstring_s_fmt_repl_field(struct nstring_fmt_ctx *context)
+exit_status_t nstring_s_fmt_repl_field(struct nstring_fmt_ctx* context)
 {
     assert(context != nullptr);
 
@@ -974,7 +964,7 @@ exit_status_t nstring_s_fmt_repl_field(struct nstring_fmt_ctx *context)
     return status;
 }
 
-exit_status_t nstring_from_format(nstring_t *string, const char *format, ...)
+exit_status_t nstring_from_format(nstring_t* string, const char* format, ...)
 {
     if (string == nullptr || *string == nullptr || format == nullptr)
     {
@@ -982,7 +972,7 @@ exit_status_t nstring_from_format(nstring_t *string, const char *format, ...)
         return EXIT_STATUS_INVALID_ARGUMENT;
     }
 
-    struct nstring_s_t *nstring = nstring_str_to_struct(*string);
+    struct nstring_s_t* nstring = nstring_str_to_struct(*string);
 
     exit_status_t status = EXIT_STATUS_SUCCESS;
 

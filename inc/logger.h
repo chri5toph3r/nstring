@@ -25,6 +25,8 @@ typedef enum : int32_t
     EXIT_STATUS_INVALID_ARGUMENT,
 
     EXIT_STATUS_SUCCESS = 0,
+    
+    EXIT_STATUS_PASS = 1,
 } exit_status_t;
 
 
